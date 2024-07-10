@@ -43,6 +43,10 @@ class FileOrganizerApp:
         self.search_button = tk.Button(self.root, text="Search", command=self.search_files)
         self.search_button.pack(pady=10)
 
+        self.text_preview = tk.Text(self.root, height=10, width=80)
+        self.text_preview.pack(pady=10)
+
+
     def browse_folder(self):
         folder = filedialog.askdirectory()
         if folder:
@@ -69,6 +73,22 @@ class FileOrganizerApp:
                 file_size = self.file_manager.file_sizes.get(file, 0)
                 display_text = f"{file} ({self.format_size(file_size)})"
                 self.listbox.insert(tk.END, display_text)
+        self.listbox.bind("<<ListboxSelect>>", self.show_preview)
+
+    def show_preview(self, event):
+        selected = self.listbox.curselection()
+        if selected:
+            file_info = self.listbox.get(selected)
+            file_path = file_info.split(" (")[0]
+            if file_path.endswith('.txt'):  # Example for text files
+                with open(file_path, 'r') as f:
+                    content = f.read()
+                self.text_preview.delete(1.0, tk.END)
+                self.text_preview.insert(tk.END, content)
+            else:
+                self.text_preview.delete(1.0, tk.END)
+                self.text_preview.insert(tk.END, "Preview not available for this file type.")
+
 
     def format_size(self, size):
         for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
