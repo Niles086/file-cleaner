@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Jul 10 11:37:28 2024
-
-@author: NilesThompson
-"""
-
 import os
 #Import os Provides a way of using operating system dependent functionality like reading or writing to the file system.
 import shutil
@@ -19,9 +12,13 @@ class FileManager:
     def __init__(self, download_folder):
         self.download_folder = download_folder
         self.files = defaultdict(list)
+<<<<<<< HEAD
+        self.file_sizes = {}  # Initialize file_sizes attribute
+=======
         self.file_sizes = {}
 
 # Method to scan all files in the download folder
+>>>>>>> da2b3503fa7027b94b0321b9a607baea5e9ab7c6
 
     def scan_files(self):
         for root, _, files in os.walk(self.download_folder):
@@ -32,20 +29,32 @@ class FileManager:
                 self.files[file_ext].append(file_path)
                 self.file_sizes[file_path] = file_size
 
+<<<<<<< HEAD
+=======
 #Method to organize files by their extensions
 
+>>>>>>> da2b3503fa7027b94b0321b9a607baea5e9ab7c6
     def organize_files(self):
         for ext, files in self.files.items():
             files.sort()
 
-#Method to move files to a new destination
     def move_file(self, file_path, dest_folder):
         if not os.path.exists(dest_folder):
             os.makedirs(dest_folder)
         shutil.move(file_path, dest_folder)
+<<<<<<< HEAD
+        if file_path in self.file_sizes:
+            del self.file_sizes[file_path]
+
+    def delete_file(self, file_path):
+        os.remove(file_path)
+        if file_path in self.file_sizes:
+            del self.file_sizes[file_path]
+=======
 
 # Method to delete files
     def delete_file(self, file_path):
         os.remove(file_path)
         if file_path in self.file_sizes:
             del self.file_sizes[file_path]
+>>>>>>> da2b3503fa7027b94b0321b9a607baea5e9ab7c6
