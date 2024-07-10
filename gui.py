@@ -36,16 +36,12 @@ class FileOrganizerApp:
 
         self.delete_button = tk.Button(self.root, text="Delete Selected File", command=self.delete_file)
         self.delete_button.pack(side=tk.RIGHT, padx=10, pady=10)
-<<<<<<< HEAD
-        
+
         self.search_entry = tk.Entry(self.root)
         self.search_entry.pack(pady=10)
 
         self.search_button = tk.Button(self.root, text="Search", command=self.search_files)
         self.search_button.pack(pady=10)
-
-=======
->>>>>>> da2b3503fa7027b94b0321b9a607baea5e9ab7c6
 
     def browse_folder(self):
         folder = filedialog.askdirectory()
@@ -55,7 +51,6 @@ class FileOrganizerApp:
             self.file_manager.organize_files()
             self.populate_listbox()
 
-<<<<<<< HEAD
     def search_files(self):
         query = self.search_entry.get().lower()
         if self.file_manager and query:
@@ -67,31 +62,20 @@ class FileOrganizerApp:
                         display_text = f"{file} ({self.format_size(file_size)})"
                         self.listbox.insert(tk.END, display_text)
 
-=======
->>>>>>> da2b3503fa7027b94b0321b9a607baea5e9ab7c6
     def populate_listbox(self):
         self.listbox.delete(0, tk.END)
         for ext, files in self.file_manager.files.items():
             for file in files:
-<<<<<<< HEAD
                 file_size = self.file_manager.file_sizes.get(file, 0)
-=======
-                file_size = self.file_manager.file_sizes[file]
->>>>>>> da2b3503fa7027b94b0321b9a607baea5e9ab7c6
                 display_text = f"{file} ({self.format_size(file_size)})"
                 self.listbox.insert(tk.END, display_text)
 
     def format_size(self, size):
-        # Helper function to format file sizes
         for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
             if size < 1024:
                 return f"{size:.2f} {unit}"
             size /= 1024
 
-<<<<<<< HEAD
-
-=======
->>>>>>> da2b3503fa7027b94b0321b9a607baea5e9ab7c6
     def move_file(self):
         selected = self.listbox.curselection()
         if selected:
