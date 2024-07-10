@@ -27,3 +27,9 @@ class FileManager:
     def organize_files(self):
         for ext, files in self.files.items():
             files.sort()
+
+#Method to move files to a new destination
+    def move_file(self, file_path, dest_folder):
+        if not os.path.exists(dest_folder):
+            os.makedirs(dest_folder)
+        shutil.move(file_path, dest_folder)
