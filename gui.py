@@ -2,50 +2,75 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 from file_manager import FileManager
 from PIL import Image, ImageTk
+import fitz  # PyMuPDF
+import io
+import os
+import shutil
+import zipfile
+import time
 
 class FileOrganizerApp:
-    def __init__(self, root):
+    def __init__(self, root, logo_path):
         self.root = root
         self.file_manager = None
+        self.img = None  # To keep a reference to the displayed image
+        self.logo_path = logo_path  # Path to the logo image
         self.create_widgets()
 
     def create_widgets(self):
         self.root.title("File Organizer")
-        self.root.geometry("800x600")
+        self.root.geometry("900x700")
+        self.root.configure(bg='#2e2e2e')  # Set the background color of the root window to dark
 
-        self.label = tk.Label(self.root, text="Select Download Folder")
-        self.label.pack(pady=20)
+        self.top_frame = tk.Frame(self.root, bg='#2e2e2e')
+        self.top_frame.pack(pady=10)
 
-        self.select_button = tk.Button(self.root, text="Browse", command=self.browse_folder)
-        self.select_button.pack(pady=10)
+        self.label = tk.Label(self.top_frame, text="Select Download Folder", bg='#2e2e2e', fg='white')
+        self.label.pack(side=tk.LEFT, padx=10)
 
-        self.frame = tk.Frame(self.root)
-        self.frame.pack(pady=20, fill=tk.BOTH, expand=True)
+        self.select_button = tk.Button(self.top_frame, text="Browse", command=self.browse_folder, bg='#3e3e3e', fg='white')
+        self.select_button.pack(side=tk.LEFT, padx=10)
 
-        self.listbox = tk.Listbox(self.frame, width=80)
+        self.action_var = tk.StringVar(value="Rename")
+        self.action_menu = tk.OptionMenu(self.top_frame, self.action_var, "Rename", "Move", "Copy", "Delete", "Search", "Zip")
+        self.action_menu.config(bg='#3e3e3e', fg='white')
+        menu = self.action_menu.nametowidget(self.action_menu.menuname)
+        menu.config(bg='#3e3e3e', fg='white')
+        self.action_menu.pack(side=tk.LEFT, padx=10)
+
+        self.input_entry = tk.Entry(self.top_frame, width=40, bg='#3e3e3e', fg='white', insertbackground='white')
+        self.input_entry.pack(side=tk.LEFT, padx=10)
+
+        self.action_button = tk.Button(self.top_frame, text="Perform Action", command=self.perform_action, bg='#3e3e3e', fg='white')
+        self.action_button.pack(side=tk.LEFT, padx=10)
+
+        self.frame = tk.Frame(self.root, bg='#2e2e2e')
+        self.frame.pack(pady=10, fill=tk.BOTH, expand=True)
+
+        self.listbox = tk.Listbox(self.frame, width=80, bg='#3e3e3e', fg='white', selectbackground='#555555', selectforeground='white')
         self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.listbox.bind("<<ListboxSelect>>", self.on_file_select)  # Bind the listbox selection to the on_file_select method
 
-        self.scrollbar = tk.Scrollbar(self.frame)
+        self.scrollbar = tk.Scrollbar(self.frame, command=self.listbox.yview, bg='#2e2e2e')
         self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
         self.listbox.config(yscrollcommand=self.scrollbar.set)
-        self.scrollbar.config(command=self.listbox.yview)
 
-        self.move_button = tk.Button(self.root, text="Move Selected File", command=self.move_file)
-        self.move_button.pack(side=tk.LEFT, padx=10, pady=10)
 
-        self.delete_button = tk.Button(self.root, text="Delete Selected File", command=self.delete_file)
-        self.delete_button.pack(side=tk.RIGHT, padx=10, pady=10)
 
-        self.search_entry = tk.Entry(self.root)
-        self.search_entry.pack(pady=10)
+        self.logo_frame = tk.Frame(self.root, bg='#2e2e2e')
+        self.logo_frame.pack(pady=10, side=tk.BOTTOM)
 
-        self.search_button = tk.Button(self.root, text="Search", command=self.search_files)
-        self.search_button.pack(pady=10)
+        self.logo_label = tk.Label(self.logo_frame, bg='#2e2e2e')
+        self.logo_label.pack()
 
-        self.text_preview = tk.Text(self.root, height=10, width=80)
-        self.text_preview.pack(pady=10)
+        self.load_logo()
 
+    def load_logo(self):
+        if os.path.exists(self.logo_path):
+            logo_image = Image.open(self.logo_path)
+            logo_image = logo_image.resize((600, 100), Image.LANCZOS)  # Adjust size as needed
+            self.logo_img = ImageTk.PhotoImage(logo_image)
+            self.logo_label.config(image=self.logo_img)
 
     def browse_folder(self):
         folder = filedialog.askdirectory()
@@ -55,8 +80,112 @@ class FileOrganizerApp:
             self.file_manager.organize_files()
             self.populate_listbox()
 
+    def populate_listbox(self):
+        self.listbox.delete(0, tk.END)
+        for ext, files in self.file_manager.files.items():
+            for file in files:
+                file_size = self.file_manager.file_sizes.get(file, 0)
+                display_text = f"{file} ({self.format_size(file_size)})"
+                self.listbox.insert(tk.END, display_text)
+
+    def format_size(self, size):
+        # Helper function to format file sizes
+        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+            if size < 1024:
+                return f"{size:.2f} {unit}"
+            size /= 1024
+
+    def show_preview(self, event):
+        selected = self.listbox.curselection()
+        if selected:
+            file_info = self.listbox.get(selected)
+            file_path = file_info.split(" (")[0]
+            ext = file_path.lower().split('.')[-1]
+
+            # Clear previous preview
+            self.preview_canvas.delete("all")
+
+            if ext in ['png', 'jpg', 'jpeg', 'gif', 'bmp']:
+                image = Image.open(file_path)
+                image = image.resize((600, 400), Image.LANCZOS)
+                self.img = ImageTk.PhotoImage(image)
+                self.preview_canvas.create_image(0, 0, anchor=tk.NW, image=self.img)
+            elif ext == 'pdf':
+                doc = fitz.open(file_path)
+                page = doc.load_page(0)  # Load the first page
+                pix = page.get_pixmap()
+                img_data = pix.tobytes("ppm")
+                image = Image.open(io.BytesIO(img_data))
+                image = image.resize((600, 400), Image.LANCZOS)
+                self.img = ImageTk.PhotoImage(image)
+                self.preview_canvas.create_image(0, 0, anchor=tk.NW, image=self.img)
+            else:
+                messagebox.showinfo("Preview not available", "Preview not available for this file type.")
+            
+            # Display file properties
+            self.show_file_properties(file_path)
+
+    def perform_action(self):
+        action = self.action_var.get()
+        if action == "Rename":
+            self.rename_file()
+        elif action == "Move":
+            self.move_file()
+        elif action == "Copy":
+            self.copy_file()
+        elif action == "Delete":
+            self.delete_file()
+        elif action == "Search":
+            self.search_files()
+        elif action == "Zip":
+            self.zip_files()
+
+    def move_file(self):
+        selected = self.listbox.curselection()
+        if selected:
+            dest_folder = self.input_entry.get()
+            if dest_folder:
+                for index in selected:
+                    file_info = self.listbox.get(index)
+                    file_path = file_info.split(" (")[0]
+                    self.file_manager.move_file(file_path, dest_folder)
+                self.populate_listbox()
+
+    def delete_file(self):
+        selected = self.listbox.curselection()
+        if selected:
+            confirm = messagebox.askyesno("Delete", "Are you sure you want to delete the selected files?")
+            if confirm:
+                for index in selected:
+                    file_info = self.listbox.get(index)
+                    file_path = file_info.split(" (")[0]
+                    self.file_manager.delete_file(file_path)
+                self.populate_listbox()
+
+    def rename_file(self):
+        selected = self.listbox.curselection()
+        if selected:
+            new_name = self.input_entry.get()
+            if new_name:
+                file_info = self.listbox.get(selected)
+                file_path = file_info.split(" (")[0]
+                new_path = os.path.join(os.path.dirname(file_path), new_name)
+                os.rename(file_path, new_path)
+                self.populate_listbox()
+
+    def copy_file(self):
+        selected = self.listbox.curselection()
+        if selected:
+            dest_folder = self.input_entry.get()
+            if dest_folder:
+                for index in selected:
+                    file_info = self.listbox.get(index)
+                    file_path = file_info.split(" (")[0]
+                    shutil.copy(file_path, dest_folder)
+                self.populate_listbox()
+
     def search_files(self):
-        query = self.search_entry.get().lower()
+        query = self.input_entry.get().lower()
         if self.file_manager and query:
             self.listbox.delete(0, tk.END)
             for ext, files in self.file_manager.files.items():
@@ -66,57 +195,55 @@ class FileOrganizerApp:
                         display_text = f"{file} ({self.format_size(file_size)})"
                         self.listbox.insert(tk.END, display_text)
 
-    def populate_listbox(self):
+    def zip_files(self):
+        selected = self.listbox.curselection()
+        if selected:
+            zip_filename = self.input_entry.get()
+            if zip_filename:
+                if not zip_filename.endswith('.zip'):
+                    zip_filename += '.zip'
+                with zipfile.ZipFile(zip_filename, 'w') as zipf:
+                    for index in selected:
+                        file_info = self.listbox.get(index)
+                        file_path = file_info.split(" (")[0]
+                        zipf.write(file_path, os.path.basename(file_path))
+                messagebox.showinfo("Zip Files", "Files zipped successfully!")
+
+    def toggle_dark_mode(self):
+        if self.root["bg"] == "black":
+            self.root.config(bg="white")
+            self.preview_canvas.config(bg="white")
+        else:
+            self.root.config(bg="black")
+            self.preview_canvas.config(bg="black")
+
+    def apply_filter(self):
+        filter_type = self.filter_var.get()
         self.listbox.delete(0, tk.END)
         for ext, files in self.file_manager.files.items():
             for file in files:
-                file_size = self.file_manager.file_sizes.get(file, 0)
-                display_text = f"{file} ({self.format_size(file_size)})"
-                self.listbox.insert(tk.END, display_text)
-        self.listbox.bind("<<ListboxSelect>>", self.show_preview)
+                if filter_type == "All" or (filter_type == "Images" and ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp']) or (filter_type == "PDFs" and ext == '.pdf'):
+                    file_size = self.file_manager.file_sizes.get(file, 0)
+                    display_text = f"{file} ({self.format_size(file_size)})"
+                    self.listbox.insert(tk.END, display_text)
 
-    def show_preview(self, event):
+    def show_file_properties(self, file_path):
+        file_size = os.path.getsize(file_path)
+        creation_time = os.path.getctime(file_path)
+        modification_time = os.path.getmtime(file_path)
+        properties = f"Size: {self.format_size(file_size)}\nCreated: {time.ctime(creation_time)}\nModified: {time.ctime(modification_time)}"
+        messagebox.showinfo("File Properties", properties)
+
+    def on_file_select(self, event):
         selected = self.listbox.curselection()
         if selected:
             file_info = self.listbox.get(selected)
             file_path = file_info.split(" (")[0]
-            if file_path.endswith('.txt'):  # Example for text files
-                with open(file_path, 'r') as f:
-                    content = f.read()
-                self.text_preview.delete(1.0, tk.END)
-                self.text_preview.insert(tk.END, content)
-            else:
-                self.text_preview.delete(1.0, tk.END)
-                self.text_preview.insert(tk.END, "Preview not available for this file type.")
-
-
-    def format_size(self, size):
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-            if size < 1024:
-                return f"{size:.2f} {unit}"
-            size /= 1024
-
-    def move_file(self):
-        selected = self.listbox.curselection()
-        if selected:
-            file_info = self.listbox.get(selected)
-            file_path = file_info.split(" (")[0]
-            dest_folder = filedialog.askdirectory()
-            if dest_folder:
-                self.file_manager.move_file(file_path, dest_folder)
-                self.populate_listbox()
-
-    def delete_file(self):
-        selected = self.listbox.curselection()
-        if selected:
-            file_info = self.listbox.get(selected)
-            file_path = file_info.split(" (")[0]
-            confirm = messagebox.askyesno("Delete", "Are you sure you want to delete this file?")
-            if confirm:
-                self.file_manager.delete_file(file_path)
-                self.populate_listbox()
+            self.input_entry.delete(0, tk.END)
+            self.input_entry.insert(0, os.path.basename(file_path))
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = FileOrganizerApp(root)
+    logo_path = r"P:\personalPythonProjects\fileCleaner\logo.png"  # Path to your company logo
+    app = FileOrganizerApp(root, logo_path)
     root.mainloop()
