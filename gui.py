@@ -8,6 +8,7 @@ import os
 import shutil
 import zipfile
 import time
+from system_monitor import SystemMonitor  # Import the system monitor
 
 class FileOrganizerApp:
     def __init__(self, root, logo_path):
@@ -30,6 +31,12 @@ class FileOrganizerApp:
 
         self.select_button = tk.Button(self.top_frame, text="Browse", command=self.browse_folder, bg='#3e3e3e', fg='white')
         self.select_button.pack(side=tk.LEFT, padx=10)
+
+        self.refresh_button = tk.Button(self.top_frame, text="Refresh", command=self.refresh_screen, bg='#3e3e3e', fg='white')
+        self.refresh_button.pack(side=tk.LEFT, padx=10)
+
+        self.system_monitor_button = tk.Button(self.top_frame, text="System Monitor", command=self.open_system_monitor, bg='#3e3e3e', fg='white')
+        self.system_monitor_button.pack(side=tk.LEFT, padx=10)
 
         self.action_var = tk.StringVar(value="Rename")
         self.action_menu = tk.OptionMenu(self.top_frame, self.action_var, "Rename", "Move", "Copy", "Delete", "Search", "Zip")
@@ -55,8 +62,6 @@ class FileOrganizerApp:
         self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.listbox.config(yscrollcommand=self.scrollbar.set)
 
-
-
         self.logo_frame = tk.Frame(self.root, bg='#2e2e2e')
         self.logo_frame.pack(pady=10, side=tk.BOTTOM)
 
@@ -76,6 +81,13 @@ class FileOrganizerApp:
         folder = filedialog.askdirectory()
         if folder:
             self.file_manager = FileManager(folder)
+            self.file_manager.scan_files()
+            self.file_manager.organize_files()
+            self.populate_listbox()
+
+    def refresh_screen(self):
+        # Refresh the screen by repopulating the listbox
+        if self.file_manager:
             self.file_manager.scan_files()
             self.file_manager.organize_files()
             self.populate_listbox()
@@ -101,9 +113,6 @@ class FileOrganizerApp:
             file_info = self.listbox.get(selected)
             file_path = file_info.split(" (")[0]
             ext = file_path.lower().split('.')[-1]
-
-            # Clear previous preview
-            self.preview_canvas.delete("all")
 
             if ext in ['png', 'jpg', 'jpeg', 'gif', 'bmp']:
                 image = Image.open(file_path)
@@ -202,12 +211,18 @@ class FileOrganizerApp:
             if zip_filename:
                 if not zip_filename.endswith('.zip'):
                     zip_filename += '.zip'
-                with zipfile.ZipFile(zip_filename, 'w') as zipf:
-                    for index in selected:
-                        file_info = self.listbox.get(index)
-                        file_path = file_info.split(" (")[0]
-                        zipf.write(file_path, os.path.basename(file_path))
-                messagebox.showinfo("Zip Files", "Files zipped successfully!")
+                zip_destination = filedialog.askdirectory()
+                if zip_destination:
+                    zip_filepath = os.path.join(zip_destination, zip_filename)  # Save the zip file to the selected directory
+                    try:
+                        with zipfile.ZipFile(zip_filepath, 'w') as zipf:
+                            for index in selected:
+                                file_info = self.listbox.get(index)
+                                file_path = file_info.split(" (")[0]
+                                zipf.write(file_path, os.path.basename(file_path))
+                        messagebox.showinfo("Zip Files", f"Files zipped successfully to {zip_filepath}!")
+                    except Exception as e:
+                        messagebox.showerror("Error", f"An error occurred while zipping files: {e}")
 
     def toggle_dark_mode(self):
         if self.root["bg"] == "black":
@@ -241,6 +256,9 @@ class FileOrganizerApp:
             file_path = file_info.split(" (")[0]
             self.input_entry.delete(0, tk.END)
             self.input_entry.insert(0, os.path.basename(file_path))
+
+    def open_system_monitor(self):
+        SystemMonitor(self.root)
 
 if __name__ == "__main__":
     root = tk.Tk()
